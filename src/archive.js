@@ -3,10 +3,11 @@ const util = require('util')
 const cheerio = require('cheerio')
 const WarcWritter = require('./warcWriter')
 const NetworkMonitor = require('./networkMonitor')
+const Promise = require('bluebird')
 
-process.on('uncaughtException', (err) => {
-  console.log(`uncaughtException: ${err}`, err, err.stack)
-})
+const savePath = '/home/john/WebstormProjects/testWarcreateElectron/something/page.html'
+
+
 
 class Archive {
   constructor (webview) {
@@ -31,9 +32,41 @@ class Archive {
       this.url = url
       console.log(url)
       let webContents = this.webview.getWebContents()
-      this.networkMonitor.attach(webContents)
-      this.webview.loadURL(url)
+      this.freshSession(webContents)
+        .then(() => {
+          this.networkMonitor.attach(webContents)
+          this.webview.loadURL(url)
+
+        })
+
       // this.webview.openDevTools()
+    })
+  }
+
+  freshSession (webContents) {
+    console.log('freshSession')
+    return new Promise((resolve, reject) => {
+      console.log('in promise')
+      let opts = {
+        origin: webContents.getURL(),
+        storages: [ 'appcache', 'filesystem', 'local storage' ]
+      }
+      webContents.session.clearStorageData(opts, () => {
+        console.log('cleared storage data')
+        webContents.clearHistory()
+        resolve()
+      })
+
+    })
+  }
+
+  extractDoctypeDom (webContents) {
+    return new Promise((resolve, reject) => {
+      webContents.executeJavaScript('document.doctype.name', false, doctype => {
+        webContents.executeJavaScript('document.documentElement.outerHTML', false, dom => {
+          resolve({ doctype, dom })
+        })
+      })
     })
   }
 
@@ -42,7 +75,14 @@ class Archive {
       let msg = event.args[ 0 ]
       if (msg === 'did-finish-load') {
         console.log('real did finish load')
-        this.webview.send('get-resources')
+        // this.webview.send('get-resources')
+        let webContents = this.webview.getWebContents()
+        this.networkMonitor.detach(webContents)
+        this.webview.openDevTools()
+        this.extractDoctypeDom(webContents)
+          .then(ret => {
+            this.warcWritter.writeWarc(this.url, this.networkMonitor, ret)
+          })
       } else if (msg === 'resources') {
         let resources = event.args[ 1 ]
         this.warcWritter.writeWarc(this.url, this.networkMonitor, resources)

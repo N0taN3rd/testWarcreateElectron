@@ -1,6 +1,8 @@
 const rp = require('request-promise')
-const _ = require('lodash')
+const { cloneWC } = require('./util')
 const Promise = require('bluebird')
+const zlib = require('zlib')
+const mimeType = require('mime-types')
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
@@ -15,94 +17,124 @@ const events = {
   4: 'complete'
 }
 
+const allowedTypes = [ 'script', 'stylesheet' ]
+
 class Resource {
   constructor (url, type, method) {
-    this.requests = []
+    this.request = null
+    this.response = null
+    this.complete = null
+    this.redirect = null
     this.method = method
     this.type = type
     this.url = url
     this.completed = false
+    this.didRedirect = false
     this.rdata = null
     this.getHeaders = null
   }
 
   add (event, dets) {
-    if (events[ event ] === 4) {
-      this.completed = true
-    }
-    if (events[ event ] === 1) {
+    let eNum = events[ event ]
+    if (eNum === 1) {
       if (!this.getHeaders) {
         this.getHeaders = dets.requestHeaders
       }
+      if (this.response) {
+        let old = this.request
+        this.request = [ old, cloneWC(dets) ]
+      } else {
+        this.request = cloneWC(dets)
+      }
+    } else if (eNum === 2) {
+      if (this.response) {
+        let old = this.response
+        this.response = [ old, cloneWC(dets) ]
+      } else {
+        this.response = cloneWC(dets)
+      }
+    } else if (eNum === 3) {
+      this.redirect = cloneWC(dets)
+      this.didRedirect = true
+    } else {
+      this.complete = cloneWC(dets)
+      this.completed = true
     }
-    this.requests.push({
-      event,
-      dets
+  }
+
+  ungzip (data, resolve, reject) {
+    console.log('un gzipping')
+    zlib.gunzip(data.body, (err, unzipped) => {
+      if (err) {
+        console.error(err)
+        reject(err)
+      } else {
+        this.rdata = unzipped.toString()
+        console.log(this.rdata)
+        resolve()
+      }
     })
   }
 
-  reqHeaders () {
-    return _.filter(this.requests, r => r.method === 'GET')
+  inflate (data, resolve, reject) {
+    console.log('inflating')
+    zlib.inflate(data.body, (err, unzipped) => {
+      if (err) {
+        console.error(err)
+        reject(err)
+      } else {
+        this.rdata = unzipped.toString()
+        console.log(this.rdata)
+        resolve()
+      }
+    })
   }
 
   dl () {
     return new Promise((resolve, reject) => {
       if (this.method !== 'POST') {
+        console.log('downloading')
         rp({
           headers: this.getHeaders,
-          encoding: null, //always get buffer
           method: 'GET',
+          encoding: null, //always get buffer
           url: this.url,
           strictSSL: false,
           rejectUnauthorized: false,
           resolveWithFullResponse: true
         })
           .then(data => {
-            this.rdata = data
-            resolve()
+            console.log('done downloading')
+            let encoding = data.headers[ 'content-encoding' ]
+            let dezipping = false
+            if (encoding && encoding.indexOf('gzip') >= 0) {
+              dezipping = true
+              this.ungzip(data, resolve, reject)
+            } else if (encoding && encoding.indexOf('deflate') >= 0) {
+              dezipping = true
+              this.inflate(data, resolve, reject)
+            } else {
+              this.rdata = data.body.toString()
+            }
+            if (!dezipping) {
+              console.log('no gzipped')
+              resolve()
+            }
           })
-          .catch(error => reject(error))
+          .catch(error => {
+            console.log('downloading error', error)
+            reject(error)
+          })
       } else {
         resolve()
       }
     })
   }
 
-  makeDL () {
-    return function () {
-      return new Promise((resolve, reject) => {
-        if (this.method !== 'POST') {
-          rp({
-            headers: this.getHeaders,
-            encoding: null, //always get buffer
-            method: 'GET',
-            url: this.url,
-            strictSSL: false,
-            rejectUnauthorized: false,
-            resolveWithFullResponse: true
-          })
-            .then(data => {
-              this.rdata = data
-              resolve()
-            })
-            .catch(error => reject(error))
-        } else {
-          resolve()
-        }
-      })
-    }
-  }
 
-  serialize () {
-    return {
-      type: this.type,
-      method: this.method,
-      completed: this.completed,
-      requests: this.requests,
-      firstHeaders: this.getHeaders
-    }
-  }
 }
+
+
 
 module.exports = {
   Resource,

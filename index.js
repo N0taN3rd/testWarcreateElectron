@@ -57,7 +57,7 @@ const loadWin = () => {
 
   // const ses = session.fromPartition('archive')
   mwindow = new BrowserWindow({
-    show: false,
+    show: false
     // webPreferences: {
     //   nodeIntegration: false,
     //   experimentalFeatures: true,

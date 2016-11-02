@@ -1,60 +1,63 @@
-const RequestManager = require('./resourceManager')
-const { Resource } = require('./resource')
-const _ = require('lodash')
+const wcRequestMonitor = require('./wcRequestMonitor')
+const { clonner } = require('./util')
 
 class NetworkMonitor {
   constructor () {
-    this.requests = new Map()
+    this.wcRequests = new wcRequestMonitor()
+    this.networkRequests = new Map()
+  }
+
+  requestWillBeSent (params) {
+    let { request } = params
+    if (!this.networkRequests.has(request.url)) {
+      this.networkRequests.set(request.url, {
+        request: clonner(request),
+        response: null
+      })
+    } else {
+      let oldRequest = this.networkRequests.get(request.url).request
+      this.networkRequests.get(request.url).request = [ oldRequest, clonner(request) ]
+    }
+
+  }
+
+  responseReceived (params) {
+    let { response } = params
+    if (this.networkRequests.has(response.url)) {
+      if (!this.networkRequests.get(response.url).response) {
+        this.networkRequests.get(response.url).response = clonner(response)
+
+      } else {
+        let oldResponse = this.networkRequests.get(response.url).response
+        this.networkRequests.get(response.url).response = [ oldResponse, clonner(response) ]
+      }
+    }
   }
 
   attach (webContents) {
-    this.requests.clear()
-    webContents.session.webRequest.onBeforeSendHeaders((dets, cb) => {
-      this.add('beforeSend', dets)
-      cb({ cancel: false, requestHeaders: dets.requestHeaders })
-    })
-    webContents.session.webRequest.onHeadersReceived((dets, cb) => {
-      this.add('receiveHead', dets)
-      cb({ cancel: false, requestHeaders: dets.requestHeaders })
-    })
-    webContents.session.webRequest.onBeforeRedirect((dets) => {
-      this.add('beforeRedirect', dets)
-    })
-    webContents.session.webRequest.onCompleted((dets) => {
-      this.add('complete', dets)
-    })
-  }
-
-  add (event, dets) {
-    console.log(event, dets)
-    if (!this.requests.has(dets.url)) {
-      this.requests.set(dets.url, new Resource(dets.url, dets.resourceType, dets.method))
+    this.wcRequests.attach(webContents)
+    try {
+      webContents.debugger.attach('1.1')
+      webContents.debugger.on('detach', (event, reason) => {
+        console.log('Debugger detached due to : ', reason)
+      })
+      webContents.debugger.sendCommand('Network.enable')
+      webContents.debugger.on('message', (event, method, params) => {
+        if (method === 'Network.requestWillBeSent') {
+          this.requestWillBeSent(params)
+        } else if (method === 'Network.responseReceived') {
+          this.responseReceived(params)
+        }
+      })
+    } catch (err) {
+      console.log('Debugger attach failed : ', err)
+      return false
     }
-    this.requests.get(dets.url).add(event, dets)
+    return true
   }
 
-  retrieve () {
-    return Promise.all(Array.from(this.requests.values()), r => r.dl())
-  }
-
-  getTypesResources (type) {
-    return _.filter(this.requests.values(), r => r.type == type)
-  }
-
-  rTypesGrouped () {
-    return _.groupBy(this.requests.values(), r => r.type)
-  }
-
-  resources () {
-    return this.requests.values()
-  }
-
-  [Symbol.iterator] () {
-    return this.requests.entries()
-  }
-
-  clear () {
-    this.requests.clear()
+  detach (webContents) {
+    webContents.debugger.detach()
   }
 
 }
