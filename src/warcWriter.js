@@ -16,14 +16,6 @@ const {
 
 const toPath = '/home/john/WebstormProjects/testWarcreateElectron/rs.json'
 
-Set.prototype.difference = function (setB) {
-  let difference = new Set(this)
-  for (let elem of setB) {
-    difference.delete(elem)
-  }
-  return difference
-}
-
 class WarcWritter extends EventEmitter {
   constructor () {
     super()
@@ -85,13 +77,7 @@ class WarcWritter extends EventEmitter {
     let { doctype, dom }  = dtDom
     let { outlinks }  =  this.extractOutlinks(aUrl, dom, preserveA)
     console.log(doctype)
-    let s1 = new Set(networkInfo.wcRequests.keys())
-    let s2 = new Set(networkInfo.networkRequests.keys())
-    for (let wtf of s1.difference(s2)) {
-      if (wtf !== aUrl) {
-        networkInfo.wcRequests.remove(wtf)
-      }
-    }
+    networkInfo.matchNetworkToWC(aUrl)
 
     let it = {}
     for (let [url,winfo] of networkInfo.wcRequests) {
@@ -103,9 +89,9 @@ class WarcWritter extends EventEmitter {
             let { headersText, requestHeadersText } = ninfo.response
             console.log(headersText, requestHeadersText)
           } else {
-            console.log('baddd', url)
             let { requestHeaders } = winfo.request
             let { responseHeaders } = winfo.response
+            console.log(requestHeaders, responseHeaders)
           }
         } else {
           if (ninfo) {
@@ -115,8 +101,7 @@ class WarcWritter extends EventEmitter {
               console.log(headersText, requestHeadersText)
             } else {
               console.log('baddd', url)
-              let { requestHeaders } = winfo.request
-              let { responseHeaders } = winfo.response
+              console.log(winfo.request, winfo.response)
             }
           }
         }

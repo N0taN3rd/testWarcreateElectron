@@ -7,8 +7,6 @@ const Promise = require('bluebird')
 
 const savePath = '/home/john/WebstormProjects/testWarcreateElectron/something/page.html'
 
-
-
 class Archive {
   constructor (webview) {
     console.log('creating archive')

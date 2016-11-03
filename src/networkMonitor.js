@@ -1,6 +1,14 @@
 const wcRequestMonitor = require('./wcRequestMonitor')
 const { clonner } = require('./util')
 
+Set.prototype.difference = function (setB) {
+  let difference = new Set(this)
+  for (let elem of setB) {
+    difference.delete(elem)
+  }
+  return difference
+}
+
 class NetworkMonitor {
   constructor () {
     this.wcRequests = new wcRequestMonitor()
@@ -58,6 +66,18 @@ class NetworkMonitor {
 
   detach (webContents) {
     webContents.debugger.detach()
+  }
+
+  matchNetworkToWC (aUrl) {
+    let s1 = new Set(this.wcRequests.keys())
+    let s2 = new Set(this.networkRequests.keys())
+    for (let wtf of s1.difference(s2)) {
+      if (wtf !== aUrl) {
+        this.wcRequests.remove(wtf)
+        this.networkRequests.delete(wtf)
+      }
+    }
+    this.wcRequests.match(this.networkRequests)
   }
 
 }

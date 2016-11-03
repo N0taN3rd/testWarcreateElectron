@@ -67,6 +67,17 @@ class wcRequestMonitor {
     return this.wcRequests.entries()
   }
 
+  match (networkInfo) {
+    for (let [url,winfo] of this.wcRequests) {
+      let ninfo = networkInfo.get(url)
+      if (ninfo) {
+        winfo.addNetwork(ninfo)
+      } else {
+        console.log('ninfo for ', url, 'of wcRequests was null')
+      }
+    }
+  }
+
   clear () {
     this.wcRequests.clear()
   }

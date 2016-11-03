@@ -2,18 +2,18 @@ const _ = require('lodash')
 
 const mapper = it => {
   if (_.isObject(it)) {
-    return _.omitBy(it, _.isFunction)
+    return clonner(_.omitBy(it, _.isFunction), mapper)
   } else {
     return it
   }
 }
 
-const wcMapper = (it,key) => {
+const wcMapper = (it, key) => {
   if (_.isObject(it)) {
-    if(key === 'responseHeaders') {
-      return _.mapValues(_.omitBy(it, _.isFunction),v => {
-        if(_.isArray(v) && v.length == 1) {
-            return v[0]
+    if (key === 'responseHeaders') {
+      return _.mapValues(_.omitBy(it, _.isFunction), v => {
+        if (_.isArray(v) && v.length == 1) {
+          return v[ 0 ]
         } else {
           return v
         }

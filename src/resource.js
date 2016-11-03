@@ -34,6 +34,7 @@ class Resource {
     this.response = null
     this.complete = null
     this.redirect = null
+    this.matchedNinfo = null
     this.method = method
     this.type = type
     this.url = url
@@ -120,21 +121,8 @@ class Resource {
         })
           .then(data => {
             console.log('done downloading')
-            let encoding = data.headers[ 'content-encoding' ]
-            let dezipping = false
-            if (encoding && encoding.indexOf('gzip') >= 0) {
-              dezipping = true
-              this.ungzip(data, resolve, reject)
-            } else if (encoding && encoding.indexOf('deflate') >= 0) {
-              dezipping = true
-              this.inflate(data, resolve, reject)
-            } else {
-              this.rdata = data.body.toString()
-            }
-            if (!dezipping) {
-              console.log('no gzipped')
-              resolve()
-            }
+            this.rdata = data.body.toString()
+            resolve()
           })
           .catch(error => {
             console.log('downloading error', error)
@@ -144,6 +132,10 @@ class Resource {
         resolve()
       }
     })
+  }
+
+  addNetwork (ninfo) {
+    this.matchedNinfo = ninfo
   }
 
 }
