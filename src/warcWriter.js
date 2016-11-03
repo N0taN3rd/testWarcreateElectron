@@ -29,7 +29,7 @@ class WarcWritter extends EventEmitter {
     super()
   }
 
-  extractOutlinks (theDom, preserveA = false) {
+  extractOutlinks (aUrl, theDom, preserveA = false) {
     let dom = cheerio.load(theDom)
     let ret = {
       outlinks: new Set()
@@ -83,7 +83,7 @@ class WarcWritter extends EventEmitter {
 
   writeWarc (aUrl, networkInfo, dtDom, preserveA = false) {
     let { doctype, dom }  = dtDom
-    let { outlinks }  =  this.extractOutlinks(dom, preserveA)
+    let { outlinks }  =  this.extractOutlinks(aUrl, dom, preserveA)
     console.log(doctype)
     let s1 = new Set(networkInfo.wcRequests.keys())
     let s2 = new Set(networkInfo.networkRequests.keys())
