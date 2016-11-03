@@ -2,7 +2,7 @@ const rp = require('request-promise')
 const { cloneWC } = require('./util')
 const Promise = require('bluebird')
 const zlib = require('zlib')
-const mimeType = require('mime-types')
+const _ = require('lodash')
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
@@ -18,6 +18,15 @@ const events = {
 }
 
 const allowedTypes = [ 'script', 'stylesheet' ]
+
+const headerStringHelper = (s, pair) => {
+  if (Array.isArray(pair[ 1 ])) {
+    return pair[ 1 ].reduce((s, val) => s + `${pair[ 0 ]}: ${val}\r\n`, '')
+  }
+  return s + `${pair[ 0 ]}: ${pair[ 1 ]}\r\n`
+}
+const makeRequestHeaderString = (r, accessor) => _.toPairs(r[ accessor ])
+  .reduce((s, hpair) => headerStringHelper(s, hpair), '')
 
 class Resource {
   constructor (url, type, method) {
@@ -42,16 +51,22 @@ class Resource {
       }
       if (this.response) {
         let old = this.request
-        this.request = [ old, cloneWC(dets) ]
+        let n = cloneWC(dets)
+        n.headerText = makeRequestHeaderString(n, 'requestHeaders')
+        this.request = [ old, n ]
       } else {
         this.request = cloneWC(dets)
+        this.request.headerText = makeRequestHeaderString(this.request, 'requestHeaders')
       }
     } else if (eNum === 2) {
       if (this.response) {
         let old = this.response
-        this.response = [ old, cloneWC(dets) ]
+        let n = cloneWC(dets)
+        n.headerText = makeRequestHeaderString(n, 'responseHeaders')
+        this.response = [ old, n ]
       } else {
         this.response = cloneWC(dets)
+        this.response.headerText = makeRequestHeaderString(this.response, 'responseHeaders')
       }
     } else if (eNum === 3) {
       this.redirect = cloneWC(dets)
@@ -131,10 +146,7 @@ class Resource {
     })
   }
 
-
 }
-
-
 
 module.exports = {
   Resource,

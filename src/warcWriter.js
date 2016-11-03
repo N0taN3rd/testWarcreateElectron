@@ -29,7 +29,7 @@ class WarcWritter extends EventEmitter {
     super()
   }
 
-  extractOutlinks (aUrl, theDom, preserveA) {
+  extractOutlinks (theDom, preserveA = false) {
     let dom = cheerio.load(theDom)
     let ret = {
       outlinks: new Set()
@@ -83,11 +83,14 @@ class WarcWritter extends EventEmitter {
 
   writeWarc (aUrl, networkInfo, dtDom, preserveA = false) {
     let { doctype, dom }  = dtDom
+    let { outlinks }  =  this.extractOutlinks(dom, preserveA)
     console.log(doctype)
     let s1 = new Set(networkInfo.wcRequests.keys())
     let s2 = new Set(networkInfo.networkRequests.keys())
     for (let wtf of s1.difference(s2)) {
-      networkInfo.wcRequests.remove(wtf)
+      if (wtf !== aUrl) {
+        networkInfo.wcRequests.remove(wtf)
+      }
     }
 
     let it = {}
@@ -96,19 +99,25 @@ class WarcWritter extends EventEmitter {
       if (winfo.response.method !== 'POST') {
         if (aUrl === url) {
           console.log('we found net info for initial request')
+          if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
+            let { headersText, requestHeadersText } = ninfo.response
+            console.log(headersText, requestHeadersText)
+          } else {
+            console.log('baddd', url)
+            let { requestHeaders } = winfo.request
+            let { responseHeaders } = winfo.response
+          }
         } else {
           if (ninfo) {
-            let { headerText, requestHeadersText } = ninfo.response
-            if (headerText && requestHeadersText) {
-              console.log(headerText, requestHeadersText)
+
+            if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
+              let { headersText, requestHeadersText } = ninfo.response
+              console.log(headersText, requestHeadersText)
             } else {
+              console.log('baddd', url)
               let { requestHeaders } = winfo.request
               let { responseHeaders } = winfo.response
             }
-            console.log(url)
-            console.log('wcinfo', winfo.request, winfo.response)
-            console.log('ninfo', ninfo.request,)
-            console.log('---------------------\n\n')
           }
         }
       }
