@@ -1,10 +1,10 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, session,protocol } =  require('electron')
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, session, protocol } =  require('electron')
 const template = require('./menuTemplate')
 // const Chrome = require('chrome-remote-interface')
 process.on('exit', (code) => {
   console.log(`About to exit with code: ${code}`);
 })
-const util  = require('util')
+const util = require('util')
 process.on('uncaughtException', (err) => {
   console.log(`uncaughtException: ${err}`, err, err.stack)
 })
@@ -18,18 +18,17 @@ process.on('warning', (warning) => {
   console.warn(warning.stack);   // Print the stack trace
 })
 
-
 app.commandLine.appendSwitch('js-flags', '--harmony')
 // app.commandLine.appendSwitch('remote-debugging-port', '9222')
 let mwindow
 const dl = true
 
-ipcMain.on('archive-ready',e => {
+ipcMain.on('archive-ready', e => {
   console.log('archive-ready')
-  e.sender.send('archive','https://twitter.com/WebSciDL')
+  e.sender.send('archive', 'https://twitter.com/WebSciDL')
 })
 
-ipcMain.on('message',(e,m) => {
+ipcMain.on('message', (e, m) => {
   console.log(m)
 })
 

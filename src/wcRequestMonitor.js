@@ -1,4 +1,4 @@
-const { Resource } = require('./resource')
+const Resource = require('./resource')
 const _ = require('lodash')
 
 const filter = {
@@ -36,7 +36,11 @@ class wcRequestMonitor {
   }
 
   retrieve (doNotInclude) {
-    return Promise.all(Array.from(this.wcRequests.values()).filter(r => r.url !== doNotInclude).map(r => r.dl()))
+    if (doNotInclude) {
+      return Promise.all(Array.from(this.wcRequests.values()).filter(r => r.url !== doNotInclude).map(r => r.dl()))
+    } else {
+      return Promise.all(Array.from(this.wcRequests.values()).map(r => r.dl()))
+    }
   }
 
   filter (doNotInclude) {
@@ -65,6 +69,10 @@ class wcRequestMonitor {
 
   [Symbol.iterator] () {
     return this.wcRequests.entries()
+  }
+
+  get (key) {
+    return this.wcRequests.get(key)
   }
 
   match (networkInfo) {

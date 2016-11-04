@@ -1,4 +1,5 @@
 const cheerio = require('cheerio')
+const Promise = require('bluebird')
 const fs = require('fs-extra')
 const moment = require('moment')
 const EventEmitter = require('eventemitter3')
@@ -9,9 +10,8 @@ const uuid = require('node-uuid')
 const {
   warcHeader,
   warcHeaderContent,
-  warcRequestHeader,
-  warcResponseHeader,
-  warcMetadataHeader
+  warcMetadataHeader,
+  recordSeparator
 } = require('./warcFields')
 
 const toPath = '/home/john/WebstormProjects/testWarcreateElectron/rs.json'
@@ -21,10 +21,11 @@ class WarcWritter extends EventEmitter {
     super()
   }
 
-  extractOutlinks (aUrl, theDom, preserveA = false) {
+  extractOutlinks (seedUrl, theDom, preserveA = false) {
     let dom = cheerio.load(theDom)
+    let outlinks = new Set()
     let ret = {
-      outlinks: new Set()
+      outlinks: ''
     }
     if (preserveA) {
       ret.aTags = new Set()
@@ -33,82 +34,91 @@ class WarcWritter extends EventEmitter {
     dom('img').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
-        ret.outlinks.add(`${outlink} E =EMBED_MISC`)
+        if (!outlinks.has(outlink)) {
+          ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
+          outlinks.add(outlink)
+        }
       }
     })
 
     dom('style[href]').each(function (i, elem) {
       let outlink = elem.attribs.href
       if (outlink) {
-        ret.outlinks.add(`${outlink} E =EMBED_MISC`)
+        if (!outlinks.has(outlink)) {
+          ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
+          outlinks.add(outlink)
+        }
       }
     })
 
     dom('script[src]').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
-        ret.outlinks.add(`${outlink} E script/@src`)
+        if (!outlinks.has(outlink)) {
+          ret.outlinks += `${outlink} E script/@src\r\n`
+          outlinks.add(outlink)
+        }
       }
+
     })
 
     dom('a').each(function (i, elem) {
       let outlink = elem.attribs.href
       if (outlink) {
-
         if (urlType.isRelative(outlink)) {
-          console.log(aUrl, outlink)
-          outlink = url.resolve(aUrl, outlink)
-          console.log(outlink)
-          console.log('---------------\n')
-        } else {
-          console.log(outlink)
-          console.log('+++++++++++++++\n')
+          outlink = url.resolve(seedUrl, outlink)
         }
         if (preserveA) {
           ret.aTags.add(outlink)
         }
-        ret.outlinks.add(`${outlink} L a/@href`)
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `outlink: ${outlink} L a/@href\r\n`
+            outlinks.add(outlink)
+          }
+        }
       }
     })
     return ret
   }
 
-  writeWarc (aUrl, networkInfo, dtDom, preserveA = false) {
+  writeWarc (config) {
+    let { seedUrl, networkMonitor, dtDom, ua, preserveA } = config
     let { doctype, dom }  = dtDom
-    let { outlinks }  =  this.extractOutlinks(aUrl, dom, preserveA)
-    console.log(doctype)
-    networkInfo.matchNetworkToWC(aUrl)
+    // let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
+    // console.log(doctype)
+    networkMonitor.matchNetworkToWC(seedUrl)
+    networkMonitor.wcRequests.get(seedUrl).rdata = `<!DOCTYPE ${doctype}>${dom}`
+    let swapper = S(warcHeaderContent)
+    let whc = swapper.template({
+      version: '156',
+      isPartOfV: 'sads',
+      warcInfoDescription: 'dsadsaas',
+      ua
+    }).s
 
-    let it = {}
-    for (let [url,winfo] of networkInfo.wcRequests) {
-      let ninfo = networkInfo.networkRequests.get(url)
-      if (winfo.response.method !== 'POST') {
-        if (aUrl === url) {
-          console.log('we found net info for initial request')
-          if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
-            let { headersText, requestHeadersText } = ninfo.response
-            console.log(headersText, requestHeadersText)
-          } else {
-            let { requestHeaders } = winfo.request
-            let { responseHeaders } = winfo.response
-            console.log(requestHeaders, responseHeaders)
-          }
-        } else {
-          if (ninfo) {
+    let wh = swapper.setValue(warcHeader).template({
+      version: '156',
+      isPartOfV: 'sads',
+      warcInfoDescription: 'dsadsaas',
+      ua
+    }).s
 
-            if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
-              let { headersText, requestHeadersText } = ninfo.response
-              console.log(headersText, requestHeadersText)
-            } else {
-              console.log('baddd', url)
-              console.log(winfo.request, winfo.response)
-            }
-          }
-        }
-      }
-      it[ url ] = {
-        winfo, ninfo
-      }
+    // let mdataString = Array.from(outlinks).
+    let wmdH = swapper.setValue(warcMetadataHeader).template({
+      targetURI: seedUrl,
+      concurrentTo: '',
+      rid: '',
+      now: '156',
+      len: 121
+    }).s
+
+    // let it = {}
+    let opts = { seedUrl, concurrentTo: 'xyz', now: 'now' }
+    for (let [url,winfo] of networkMonitor.wcRequests) {
+      console.log(url)
+      winfo.writeToWarcFile('', opts)
+      console.log('----------------\n\n')
     }
 
     // this.extractOutlinks(aUrl, theDom, preserveA)
@@ -156,3 +166,34 @@ class WarcWritter extends EventEmitter {
 }
 
 module.exports = WarcWritter
+
+/*
+ let ninfo = networkInfo.networkRequests.get(url)
+ if (winfo.response.method !== 'POST') {
+ if (aUrl === url) {
+ console.log('we found net info for initial request')
+ if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
+ let { headersText, requestHeadersText } = ninfo.response
+ console.log(headersText, requestHeadersText)
+ } else {
+ let { requestHeaders } = winfo.request
+ let { responseHeaders } = winfo.response
+ console.log(requestHeaders, responseHeaders)
+ }
+ } else {
+ if (ninfo) {
+
+ if (ninfo.response.headersText && ninfo.response.requestHeadersText) {
+ let { headersText, requestHeadersText } = ninfo.response
+ console.log(headersText, requestHeadersText)
+ } else {
+ console.log('baddd', url)
+ console.log(winfo.request, winfo.response)
+ }
+ }
+ }
+ }
+ it[ url ] = {
+ winfo, ninfo
+ }
+ */

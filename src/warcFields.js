@@ -16,6 +16,16 @@ const warcHeaderContent =
   'robots: ignore\r\n' +
   'http-header-user-agent: {{UA}}\r\n'
 
+const warcMetadataHeader =
+  'WARC/1.0\r\n' +
+  'WARC-Type: metadata\r\n' +
+  'WARC-Target-URI: {{targetURI}}\r\n' +
+  'WARC-Date: {{now}}\r\n' +
+  'WARC-Concurrent-To: <urn:uuid:{{concurrentTo}}>\r\n' +
+  'WARC-Record-ID: <urn:uuid:{{rid}}>\r\n' +
+  'Content-Type: application/warc-fields\r\n' +
+  'Content-Length: {{len}}\r\n'
+
 const warcRequestHeader =
   'WARC/1.0\r\n' +
   'WARC-Type: request\r\n' +
@@ -24,16 +34,6 @@ const warcRequestHeader =
   'WARC-Concurrent-To: <urn:uuid:{{concurrentTo}}>\r\n' +
   'WARC-Record-ID: <urn:uuid:{{rid}}>\r\n' +
   'Content-Type: application/http; msgtype=request\r\n' +
-  'Content-Length: {{len}}\r\n'
-
-const warcMetadataHeader =
-  'WARC/1.0\r\n' +
-  'WARC-Type: metadata\r\n' +
-  'WARC-Target-URI: {{targetURI}}\r\n' +
-  'WARC-Date: {{now}}\r\n' +
-  'WARC-Concurrent-To: {{concurrentTo}}\r\n' +
-  'WARC-Record-ID: <urn:uuid:{{rid}}>\r\n' +
-  'Content-Type: application/warc-fields\r\n' +
   'Content-Length: {{len}}\r\n'
 
 const warcResponseHeader =
@@ -45,10 +45,13 @@ const warcResponseHeader =
   'Content-Type: application/http; msgtype=response\r\n' +
   'Content-Length: {{len}}\r\n'
 
+const recordSeparator = '\r\n\r\n'
+
 module.exports = {
   warcHeader,
   warcHeaderContent,
   warcRequestHeader,
   warcResponseHeader,
-  warcMetadataHeader
+  warcMetadataHeader,
+  recordSeparator
 }

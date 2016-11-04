@@ -24,6 +24,10 @@ class Archive {
       }
     })
 
+    this.webview.addEventListener('console-message', (e) => {
+      console.log('Guest page logged a message:', e.message)
+    })
+
     this.ipcMessage = this.ipcMessage.bind(this)
     this.webview.addEventListener('ipc-message', this.ipcMessage)
     ipcRenderer.on('archive', (e, url) => {
@@ -76,14 +80,15 @@ class Archive {
         // this.webview.send('get-resources')
         let webContents = this.webview.getWebContents()
         this.networkMonitor.detach(webContents)
-        this.webview.openDevTools()
         this.extractDoctypeDom(webContents)
           .then(ret => {
-            this.warcWritter.writeWarc(this.url, this.networkMonitor, ret)
+            let opts = {
+              seedUrl: this.url, networkMonitor: this.networkMonitor,
+              ua: this.webview.getUserAgent(),
+              dtDom: ret, preserveA: false
+            }
+            this.warcWritter.writeWarc(opts)
           })
-      } else if (msg === 'resources') {
-        let resources = event.args[ 1 ]
-        this.warcWritter.writeWarc(this.url, this.networkMonitor, resources)
       } else {
         console.log(msg)
       }

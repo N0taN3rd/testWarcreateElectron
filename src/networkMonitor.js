@@ -73,6 +73,7 @@ class NetworkMonitor {
     let s2 = new Set(this.networkRequests.keys())
     for (let wtf of s1.difference(s2)) {
       if (wtf !== aUrl) {
+        console.log('removing', wtf)
         this.wcRequests.remove(wtf)
         this.networkRequests.delete(wtf)
       }
