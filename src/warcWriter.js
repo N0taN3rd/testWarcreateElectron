@@ -14,7 +14,7 @@ const {
   recordSeparator
 } = require('./warcFields')
 
-const toPath = '/home/john/WebstormProjects/testWarcreateElectron/rs.json'
+const toPath = '/home/john/WebstormProjects/testWarcreateElectron/test.warc'
 
 class WarcWritter extends EventEmitter {
   constructor () {
@@ -114,12 +114,21 @@ class WarcWritter extends EventEmitter {
     // }).s
     //
     // // let it = {}
-    let opts = { seedUrl, concurrentTo: 'xyz', now: 'now' }
+    let now = new Date().toISOString()
+    now = now.substr(0, now.indexOf('.')) + 'Z'
+    let me = uuid.v1()
+    let opts = { seedUrl, concurrentTo: me, now }
+    let warcOut = fs.createWriteStream(toPath)
+    warcOut.on('finish', () => {
+      console.log('All writes are now complete.')
+      warcOut.destroy()
+    })
     for (let [url,winfo] of networkMonitor.wcRequests) {
       console.log(url)
-      winfo.writeToWarcFile('', opts)
+      winfo.writeToWarcFile2(warcOut, '', opts)
       console.log('----------------\n\n')
     }
+    warcOut.end()
 
     // this.extractOutlinks(aUrl, theDom, preserveA)
 

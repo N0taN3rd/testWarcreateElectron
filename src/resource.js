@@ -195,9 +195,14 @@ class Resource {
       return this.response
     }
   }
+
   /*
    makeWarcResponseHeaderWith(rh, now, warcConcurrentTo,
    responseHeaders[rh] + CRLF, hexValueInt8Ary.length + (CRLF + CRLF).length) + CRLF
+
+   makeWarcResponseHeaderWith(requestHeader, now, warcConcurrentTo, respHeader + respContent) + CRLF
+
+   makeWarcResponseHeaderWith(initURI, now, warcConcurrentTo, warcResponse, 0) // htmlLengthCorrection)
    */
   writeToWarcFile2 (warcStream, body, opts) {
     let { seedUrl, concurrentTo, now } = opts
@@ -205,6 +210,7 @@ class Resource {
       let res = this._response()
       let reqHeaderString
       let resHeaderString
+      console.log('badd', this.request)
       if (res) {
         reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
         resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
@@ -213,6 +219,9 @@ class Resource {
       }
       let swapper = S(warcRequestHeader)
       let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString, 'utf8')
+      if (this.url === 'https://abs.twimg.com/c/swift/en/bundle/boot.131f03c7000a0120f94649c4db9244058fd428a9.js') {
+        console.log(reqHeaderString)
+      }
       let reqWHeader = swapper.template({
         targetURI: this.url, concurrentTo,
         now, rid: uuid.v1(), len: reqHeadContentBuffer.length
