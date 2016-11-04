@@ -105,12 +105,10 @@ class Resource {
     }
   }
 
-  makeHeaderStrings (seedUrl) {
-    let reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
-    let resHeaderString = makeHeaderString(this.response, 'responseHeaders', responseHttpString)
+  makeHeaderStrings (seedUrl, req, res) {
+    let reqHeaderString = makeHeaderString(req, 'requestHeaders', requestHttpString)
+    let resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
     if (this.url === seedUrl) {
-      console.log(this.request.requestHeaders)
-      console.log(this.response.responseHeaders)
       if (seedUrl.indexOf('twitter.com') > -1) {
         resHeaderString = resHeaderString.replace('text/javascript', 'text/html')
       }
@@ -127,78 +125,27 @@ class Resource {
     return { reqHeaderString, resHeaderString }
   }
 
-  correctSeedHeads () {
-    console.log(responseHeaders)
-    // this.response.responseHeaders = _.mapValues(this.response.responseHeaders,(v,k) => {
-    //   if(k.toLowerCase() === 'accept-encoding') {
-    //
-    //   }
-    // })
-    console.log(this.response.responseHeaders)
-    console.log(this.matchedNinfo)
-  }
-
   doWrite (now, concurrentTo, reqHeaderString, resHeaderString) {
-    let swapper = S(warcRequestHeader)
-    let reqWHeader = swapper.template({
-      targetURI: this.url, concurrentTo,
-      now, rid: uuid.v1(), len: reqHeaderString.length
-    }).s
-    let respWHeader = swapper.setValue(warcResponseHeader).template({
-      targetURI: this.url,
-      now, rid: uuid.v1(), len: resHeaderString.length
-    }).s
+
   }
 
   writeToWarcFile (warcStream, opts) {
     let { seedUrl, concurrentTo, now } = opts
 
     if (this.method === 'GET') {
-      if (this.didRedirect) {
+      let res = this.completed ? this.completed : this.response
+      let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl, this.request, res)
+      let swapper = S(warcRequestHeader)
+      let reqWHeader = swapper.template({
+        targetURI: this.url, concurrentTo,
+        now, rid: uuid.v1(), len: reqHeaderString.length
+      }).s
 
-      } else {
-        if (this.matchedNinfo) {
-          // console.log('has matchedNifo')
-          let { response } = this.matchedNinfo
-          if (response) {
-            // console.log('has matchedNifo response')
-            let { headersText, requestHeadersText } = response
-            if (headersText && requestHeadersText) {
-              console.log(this.matchedNinfo)
-              console.log(this.request, this.response)
-            } else {
-              // console.log(headersText, requestHeadersText)
-              if (headersText && !requestHeadersText) {
-                console.log('has only response headers')
-                // console.log(response)
-                // console.log(this.request, this.response)
-              } else if (!headersText && requestHeadersText) {
-                // console.log('has only request headers')
-                // console.log(this.matchedNinfo)
-                // console.log(this.request, this.response)
-              } else {
-                console.log('has no matchedNifo header text')
-                let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
-                console.log(this.request, this.response)
-              }
-            }
-          } else {
-            console.log('no has matchedNifo response', this.matchedNinfo)
-            let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
+      let respWHeader = swapper.setValue(warcResponseHeader).template({
+        targetURI: this.url,
+        now, rid: uuid.v1(), len: resHeaderString.length
+      }).s
 
-          }
-        } else {
-          let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
-          console.log('has no matchedNifo')
-        }
-      }
-
-      if (this.completed) {
-        console.log('completed')
-
-      } else {
-        console.log('did not complete')
-      }
     }
   }
 
@@ -249,3 +196,40 @@ class Resource {
 }
 
 module.exports = Resource
+
+/*
+ if (this.matchedNinfo) {
+ // console.log('has matchedNifo')
+ let { response } = this.matchedNinfo
+ if (response) {
+ // console.log('has matchedNifo response')
+ let { headersText, requestHeadersText } = response
+ if (headersText && requestHeadersText) {
+ console.log(this.matchedNinfo)
+ console.log(this.request, this.response)
+ } else {
+ // console.log(headersText, requestHeadersText)
+ if (headersText && !requestHeadersText) {
+ console.log('has only response headers')
+ // console.log(response)
+ // console.log(this.request, this.response)
+ } else if (!headersText && requestHeadersText) {
+ // console.log('has only request headers')
+ // console.log(this.matchedNinfo)
+ // console.log(this.request, this.response)
+ } else {
+ console.log('has no matchedNifo header text')
+ let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
+ console.log(this.request, this.response)
+ }
+ }
+ } else {
+ console.log('no has matchedNifo response', this.matchedNinfo)
+ let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
+
+ }
+ } else {
+ let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl)
+ console.log('has no matchedNifo')
+ }
+ */
