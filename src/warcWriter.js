@@ -88,32 +88,32 @@ class WarcWritter extends EventEmitter {
     // let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
     // console.log(doctype)
     networkMonitor.matchNetworkToWC(seedUrl)
-    networkMonitor.wcRequests.get(seedUrl).rdata = `<!DOCTYPE ${doctype}>${dom}`
-    let swapper = S(warcHeaderContent)
-    let whc = swapper.template({
-      version: '156',
-      isPartOfV: 'sads',
-      warcInfoDescription: 'dsadsaas',
-      ua
-    }).s
-
-    let wh = swapper.setValue(warcHeader).template({
-      version: '156',
-      isPartOfV: 'sads',
-      warcInfoDescription: 'dsadsaas',
-      ua
-    }).s
-
-    // let mdataString = Array.from(outlinks).
-    let wmdH = swapper.setValue(warcMetadataHeader).template({
-      targetURI: seedUrl,
-      concurrentTo: '',
-      rid: '',
-      now: '156',
-      len: 121
-    }).s
-
-    // let it = {}
+    networkMonitor.wcRequests.get(seedUrl).addSeedUrlBody(`<!DOCTYPE ${doctype}>${dom}`)
+    // let swapper = S(warcHeaderContent)
+    // let whc = swapper.template({
+    //   version: '156',
+    //   isPartOfV: 'sads',
+    //   warcInfoDescription: 'dsadsaas',
+    //   ua
+    // }).s
+    //
+    // let wh = swapper.setValue(warcHeader).template({
+    //   version: '156',
+    //   isPartOfV: 'sads',
+    //   warcInfoDescription: 'dsadsaas',
+    //   ua
+    // }).s
+    //
+    // // let mdataString = Array.from(outlinks).
+    // let wmdH = swapper.setValue(warcMetadataHeader).template({
+    //   targetURI: seedUrl,
+    //   concurrentTo: '',
+    //   rid: '',
+    //   now: '156',
+    //   len: 121
+    // }).s
+    //
+    // // let it = {}
     let opts = { seedUrl, concurrentTo: 'xyz', now: 'now' }
     for (let [url,winfo] of networkMonitor.wcRequests) {
       console.log(url)

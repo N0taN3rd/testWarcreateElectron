@@ -1,6 +1,7 @@
 const rp = require('request-promise')
 const Promise = require('bluebird')
 const _ = require('lodash')
+const zlib = require('zlib')
 const S = require('string')
 const { cloneWC } = require('./util')
 const uuid = require('./node-uuid')
@@ -54,6 +55,8 @@ class Resource {
     this.didRedirect = false
     this.rdata = null
     this.getHeaders = null
+    this.isSeed = false
+    this.seedUrlHeaderMap = this.seedUrlHeaderMap.bind(this)
   }
 
   add (event, dets) {
@@ -105,67 +108,128 @@ class Resource {
     }
   }
 
-  makeHeaderStrings (seedUrl, req, res) {
-    let reqHeaderString = makeHeaderString(req, 'requestHeaders', requestHttpString)
-    let resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
-    if (this.url === seedUrl) {
-      if (seedUrl.indexOf('twitter.com') > -1) {
-        resHeaderString = resHeaderString.replace('text/javascript', 'text/html')
+  seedUrlHeaderMap (v, k) {
+    let lowerKey = k.toLowerCase()
+    if (lowerKey === 'content-length') {
+      return `${this.rdata.length}`
+    } else if (lowerKey === 'content-encoding') {
+      return null
+    } else if (lowerKey === 'content-type') {
+      if (this.url.indexOf('twitter.com') > -1) {
+        return v.replace('text/javascript', 'text/html')
       }
-      // DUCTTAPE to fix bug #53
-      resHeaderString = resHeaderString.replace('HTTP/1.1 304 Not Modified', 'HTTP/1.1 200 OK')
-
-      // DUCTTAPE to fix bug #62
-      // - fix the content length to be representative of the un-zipped text content
-      resHeaderString = resHeaderString.replace(/Content-Length:.*\r\n/gi, 'Content-Length: ' + this.rdata.length + '\r\n')
-
-      // - remove reference to GZip HTML (or text) body, as we're querying the DOM, not getting the raw feed
-      resHeaderString = resHeaderString.replace(/Content-Encoding.*gzip\r\n/gi, '')
     }
-    return { reqHeaderString, resHeaderString }
+    return v
   }
 
-  doWrite (now, concurrentTo, reqHeaderString, resHeaderString) {
+  addSeedUrlBody (dom) {
+    this.isSeed = true
+    this.rdata = Buffer.from(dom, 'utf8')
+    this.response.statusLine = this.response.statusLine.replace('HTTP/1.1 304 Not Modified', 'HTTP/1.1 200 OK')
+    this.response.responseHeaders = _.omitBy(_.mapValues(this.response.responseHeaders, this.seedUrlHeaderMap), _.isNull)
+    if (this.completed) {
+      this.complete.responseHeaders = _.omitBy(_.mapValues(this.complete.responseHeaders, this.seedUrlHeaderMap), _.isNull)
+    }
+  }
 
+  ungzip (data, resolve, reject) {
+    console.log('un gzipping')
+    zlib.gunzip(data.body, (err, unzipped) => {
+      if (err) {
+        console.error(err)
+        reject(err)
+      } else {
+        this.rdata = unzipped.toString()
+        console.log(this.rdata)
+        resolve()
+      }
+    })
+  }
+
+  inflate (data, resolve, reject) {
+    console.log('inflating')
+    zlib.inflate(data.body, (err, unzipped) => {
+      if (err) {
+        console.error(err)
+        reject(err)
+      } else {
+        this.rdata = unzipped.toString()
+        console.log(this.rdata)
+        resolve()
+      }
+    })
   }
 
   writeToWarcFile (warcStream, opts) {
     let { seedUrl, concurrentTo, now } = opts
-
     if (this.method === 'GET') {
-      let res = this.completed ? this.completed : this.response
-      let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl, this.request, res)
-      let swapper = S(warcRequestHeader)
-      let reqWHeader = swapper.template({
-        targetURI: this.url, concurrentTo,
-        now, rid: uuid.v1(), len: reqHeaderString.length
-      }).s
-
-      let respWHeader = swapper.setValue(warcResponseHeader).template({
-        targetURI: this.url,
-        now, rid: uuid.v1(), len: resHeaderString.length
-      }).s
-
+      // let res = this.completed ? this.completed : this.response
+      // if (res) {
+      //   let reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      //   let resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
+      // } else {
+      //   let reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      // }
+      //
+      // let swapper = S(warcRequestHeader)
+      // let reqWHeader = swapper.template({
+      //   targetURI: this.url, concurrentTo,
+      //   now, rid: uuid.v1(), len: reqHeaderString.length
+      // }).s
+      //
+      // let respWHeader = swapper.setValue(warcResponseHeader).template({
+      //   targetURI: this.url,
+      //   now, rid: uuid.v1(), len: resHeaderString.length
+      // }).s
+    } else {
+      // write something
     }
   }
 
+  _response () {
+    if (this.redirect) {
+      return this.redirect
+    } else if (this.complete) {
+      return this.complete
+    } else {
+      return this.response
+    }
+  }
+  /*
+   makeWarcResponseHeaderWith(rh, now, warcConcurrentTo,
+   responseHeaders[rh] + CRLF, hexValueInt8Ary.length + (CRLF + CRLF).length) + CRLF
+   */
   writeToWarcFile2 (warcStream, body, opts) {
     let { seedUrl, concurrentTo, now } = opts
     if (this.method === 'GET') {
-      let res = this.completed ? this.completed : this.response
-      let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl, this.request, res)
+      let res = this._response()
+      let reqHeaderString
+      let resHeaderString
+      if (res) {
+        reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+        resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
+      } else {
+        reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      }
       let swapper = S(warcRequestHeader)
+      let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString, 'utf8')
       let reqWHeader = swapper.template({
         targetURI: this.url, concurrentTo,
-        now, rid: uuid.v1(), len: reqHeaderString.length
+        now, rid: uuid.v1(), len: reqHeadContentBuffer.length
       }).s
+      warcStream.write(reqWHeader, 'utf8')
+      warcStream.write(reqHeadContentBuffer, 'utf8')
+      warcStream.write(recordSeparator, 'utf8')
 
-      let respWHeader = swapper.setValue(warcResponseHeader).template({
-        targetURI: this.url,
-        now, rid: uuid.v1(), len: resHeaderString.length
-      }).s
+      if (res) {
+        let resHeaderContentBuffer = Buffer.from(resHeaderString)
+        let respWHeader = swapper.setValue(warcResponseHeader).template({
+          targetURI: this.url,
+          now, rid: uuid.v1(), len: resHeaderContentBuffer.length + body.length
+        }).s
+      }
     } else {
-
+      //something not get
     }
   }
 
@@ -185,7 +249,6 @@ class Resource {
           .then(data => {
             console.log('done downloading')
             this.writeToWarcFile2(warcStream, data.body, opts)
-            this.rdata = data.body
             resolve()
           })
           .catch(error => {
