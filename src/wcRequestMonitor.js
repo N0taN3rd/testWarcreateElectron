@@ -1,5 +1,6 @@
 const Resource = require('./resource')
 const _ = require('lodash')
+const Promise = require('lodash')
 
 const filter = {
   urls: [ 'http://*/*', 'https://*/*' ]
@@ -36,6 +37,14 @@ class wcRequestMonitor {
   }
 
   retrieve (doNotInclude) {
+    if (doNotInclude) {
+      return Promise.all(Array.from(this.wcRequests.values()).filter(r => r.url !== doNotInclude).map(r => r.dl()))
+    } else {
+      return Promise.all(Array.from(this.wcRequests.values()).map(r => r.dl()))
+    }
+  }
+
+  dlWrite (warcStream, opts, doNotInclude) {
     if (doNotInclude) {
       return Promise.all(Array.from(this.wcRequests.values()).filter(r => r.url !== doNotInclude).map(r => r.dl()))
     } else {

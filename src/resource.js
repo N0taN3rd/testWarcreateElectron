@@ -149,6 +149,56 @@ class Resource {
     }
   }
 
+  writeToWarcFile2 (warcStream, body, opts) {
+    let { seedUrl, concurrentTo, now } = opts
+    if (this.method === 'GET') {
+      let res = this.completed ? this.completed : this.response
+      let { reqHeaderString, resHeaderString } = this.makeHeaderStrings(seedUrl, this.request, res)
+      let swapper = S(warcRequestHeader)
+      let reqWHeader = swapper.template({
+        targetURI: this.url, concurrentTo,
+        now, rid: uuid.v1(), len: reqHeaderString.length
+      }).s
+
+      let respWHeader = swapper.setValue(warcResponseHeader).template({
+        targetURI: this.url,
+        now, rid: uuid.v1(), len: resHeaderString.length
+      }).s
+    } else {
+
+    }
+  }
+
+  dlWrite (warcStream, opts) {
+    return new Promise((resolve, reject) => {
+      if (this.method !== 'POST') {
+        console.log('downloading')
+        rp({
+          headers: this.getHeaders,
+          method: 'GET',
+          encoding: null, //always get buffer
+          url: this.url,
+          strictSSL: false,
+          rejectUnauthorized: false,
+          resolveWithFullResponse: true
+        })
+          .then(data => {
+            console.log('done downloading')
+            this.writeToWarcFile2(warcStream, data.body, opts)
+            this.rdata = data.body
+            resolve()
+          })
+          .catch(error => {
+            console.log('downloading error', error)
+            reject(error)
+          })
+      } else {
+        this.writeToWarcFile2(warcStream, '', opts)
+        resolve()
+      }
+    })
+  }
+
   dl () {
     return new Promise((resolve, reject) => {
       if (this.method !== 'POST') {
@@ -174,18 +224,6 @@ class Resource {
       } else {
         resolve()
       }
-    })
-  }
-
-  rawDl () {
-    return rp({
-      headers: this.getHeaders,
-      method: 'GET',
-      encoding: null, //always get buffer
-      url: this.url,
-      strictSSL: false,
-      rejectUnauthorized: false,
-      resolveWithFullResponse: true
     })
   }
 
