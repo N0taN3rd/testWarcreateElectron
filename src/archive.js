@@ -4,6 +4,8 @@ const cheerio = require('cheerio')
 const WarcWritter = require('./warcWriter')
 const NetworkMonitor = require('./networkMonitor')
 const Promise = require('bluebird')
+const url = require('url')
+const urlType = require('url-type')
 
 const savePath = '/home/john/WebstormProjects/testWarcreateElectron/something/page.html'
 
@@ -14,7 +16,7 @@ class Archive {
     this.wbReady = false
     this.networkMonitor = new NetworkMonitor()
     this.warcWritter = new WarcWritter()
-    this.url = ''
+    this.uri_r = ''
     this.webview.addEventListener('did-stop-loading', (e) => {
       console.log('it finished loading')
       if (!this.wbReady) {
@@ -30,19 +32,86 @@ class Archive {
 
     this.ipcMessage = this.ipcMessage.bind(this)
     this.webview.addEventListener('ipc-message', this.ipcMessage)
-    ipcRenderer.on('archive', (e, url) => {
-      this.url = url
-      console.log(url)
+    ipcRenderer.on('archive', (e, uri_r) => {
+      this.uri_r = uri_r
+      console.log(uri_r)
       let webContents = this.webview.getWebContents()
       this.freshSession(webContents)
         .then(() => {
           this.networkMonitor.attach(webContents)
-          this.webview.loadURL(url)
+          this.webview.loadURL(uri_r)
 
         })
 
       // this.webview.openDevTools()
     })
+  }
+
+  extractOutlinks (seedUrl, theDom, preserveA = false) {
+    let dom = cheerio.load(theDom)
+    let outlinks = new Set()
+    let ret = {
+      outlinks: ''
+    }
+    if (preserveA) {
+      ret.aTags = new Set()
+    }
+
+    dom('img').each(function (i, elem) {
+      let outlink = elem.attribs.src
+      if (outlink) {
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
+            outlinks.add(outlink)
+          }
+        }
+      }
+    })
+
+    dom('style[href]').each(function (i, elem) {
+      let outlink = elem.attribs.href
+      if (outlink) {
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
+            outlinks.add(outlink)
+          }
+        }
+      }
+    })
+
+    dom('script[src]').each(function (i, elem) {
+      let outlink = elem.attribs.src
+      if (outlink) {
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink} E script/@src\r\n`
+            outlinks.add(outlink)
+          }
+        }
+      }
+
+    })
+
+    dom('a').each(function (i, elem) {
+      let outlink = elem.attribs.href
+      if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `outlink: ${outlink} L a/@href\r\n`
+            outlinks.add(outlink)
+            if (preserveA) {
+              ret.aTags.add(outlink)
+            }
+          }
+        }
+      }
+    })
+    return ret
   }
 
   freshSession (webContents) {
@@ -83,7 +152,7 @@ class Archive {
         this.extractDoctypeDom(webContents)
           .then(ret => {
             let opts = {
-              seedUrl: this.url, networkMonitor: this.networkMonitor,
+              seedUrl: this.uri_r, networkMonitor: this.networkMonitor,
               ua: this.webview.getUserAgent(),
               dtDom: ret, preserveA: false
             }

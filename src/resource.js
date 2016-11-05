@@ -3,6 +3,7 @@ const Promise = require('bluebird')
 const _ = require('lodash')
 const zlib = require('zlib')
 const S = require('string')
+const url = require("url")
 const { cloneWC } = require('./util')
 const uuid = require('./node-uuid')
 const {
@@ -26,12 +27,17 @@ const events = {
 
 const headerStringHelper = (s, pair) => {
   if (Array.isArray(pair[ 1 ])) {
-    return pair[ 1 ].reduce((s, val) => s + `${pair[ 0 ]}: ${val}\r\n`, '')
+    return s + pair[ 1 ].reduce((ss, val) => ss + `${pair[ 0 ]}: ${val}\r\n`, '')
   }
   return s + `${pair[ 0 ]}: ${pair[ 1 ]}\r\n`
 }
 
-const requestHttpString = r => `${r.method} ${r.url} HTTP/1.0\r\n`
+function requestHttpString (r) {
+  if (!r.url) {
+    console.error(r)
+  }
+  return `${r.method} ${url.parse(r.url).path} HTTP/1.0\r\n`
+}
 const responseHttpString = r => `${r.statusLine}\r\n`
 
 const stringifyHeaders = (r, accessor) => _
@@ -56,6 +62,7 @@ class Resource {
     this.rdata = null
     this.getHeaders = null
     this.isSeed = false
+    this.writeOpts = null
     this.seedUrlHeaderMap = this.seedUrlHeaderMap.bind(this)
   }
 
@@ -117,6 +124,8 @@ class Resource {
     } else if (lowerKey === 'content-type') {
       if (this.url.indexOf('twitter.com') > -1) {
         return v.replace('text/javascript', 'text/html')
+      } else {
+        return v
       }
     }
     return v
@@ -127,6 +136,7 @@ class Resource {
     this.rdata = Buffer.from(dom, 'utf8')
     this.response.statusLine = this.response.statusLine.replace('HTTP/1.1 304 Not Modified', 'HTTP/1.1 200 OK')
     this.response.responseHeaders = _.omitBy(_.mapValues(this.response.responseHeaders, this.seedUrlHeaderMap), _.isNull)
+    console.log(this.response.responseHeaders)
     if (this.completed) {
       this.complete.responseHeaders = _.omitBy(_.mapValues(this.complete.responseHeaders, this.seedUrlHeaderMap), _.isNull)
     }
@@ -189,10 +199,73 @@ class Resource {
   _response () {
     if (this.redirect) {
       return this.redirect
-    } else if (this.complete) {
+    } else if (this.completed) {
       return this.complete
     } else {
       return this.response
+    }
+  }
+
+  addWriteOpts (opts) {
+    this.writeOpts = opts
+  }
+
+  * yeildWritable (opts) {
+    let { seedUrl, concurrentTo, now } = opts
+    if (this.method === 'GET') {
+      let res = this._response()
+      let reqHeaderString
+      let resHeaderString
+      if (res) {
+        reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+        resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
+      } else {
+        reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      }
+      let swapper = S(warcRequestHeader)
+      let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString + '\r\n', 'utf8')
+      let reqWHeader = swapper.template({
+        targetURI: this.url, concurrentTo,
+        now, rid: uuid.v1(), len: reqHeadContentBuffer.length
+      }).s
+      yield reqWHeader
+      yield reqHeadContentBuffer
+      yield recordSeparator
+      if (res) {
+        let resHeaderContentBuffer = Buffer.from('\r\n' + resHeaderString + '\r\n', 'utf8')
+        let respWHeader = swapper.setValue(warcResponseHeader).template({
+          targetURI: this.url,
+          now, rid: uuid.v1(), len: resHeaderContentBuffer.length + this.rdata.length
+        }).s
+        yield respWHeader
+        yield resHeaderContentBuffer
+        yield this.rdata
+        yield '\r\n'
+        yield recordSeparator
+      }
+    } else {
+      // //something not get
+      // console.log('not get')
+      // console.log(this.request)
+      // console.log(this.response)
+      // let res = this._response()
+      // let reqHeaderString
+      // let resHeaderString
+      // if (res) {
+      //   reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      //   resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
+      // } else {
+      //   reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+      // }
+      // let swapper = S(warcRequestHeader)
+      // let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString, 'utf8')
+      // let reqWHeader = swapper.template({
+      //   targetURI: this.url, concurrentTo,
+      //   now, rid: uuid.v1(), len: reqHeadContentBuffer.length
+      // }).s
+      // yield reqWHeader
+      // yield reqHeadContentBuffer
+      // yield recordSeparator
     }
   }
 
@@ -219,22 +292,19 @@ class Resource {
       }
       let swapper = S(warcRequestHeader)
       let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString, 'utf8')
-      if (this.url === 'https://abs.twimg.com/c/swift/en/bundle/boot.131f03c7000a0120f94649c4db9244058fd428a9.js') {
-        console.log(reqHeaderString)
-      }
       let reqWHeader = swapper.template({
         targetURI: this.url, concurrentTo,
         now, rid: uuid.v1(), len: reqHeadContentBuffer.length
       }).s
-      warcStream.write(reqWHeader, 'utf8')
-      warcStream.write(reqHeadContentBuffer, 'utf8')
-      warcStream.write(recordSeparator, 'utf8')
+      console.log('should stop if false?', warcStream.write(reqWHeader, 'utf8'))
+      console.log('should stop if false?', warcStream.write(reqHeadContentBuffer, 'utf8'))
+      console.log('should stop if false?', warcStream.write(recordSeparator, 'utf8'))
 
       if (res) {
         let resHeaderContentBuffer = Buffer.from(resHeaderString)
         let respWHeader = swapper.setValue(warcResponseHeader).template({
           targetURI: this.url,
-          now, rid: uuid.v1(), len: resHeaderContentBuffer.length + body.length
+          now, rid: uuid.v1(), len: resHeaderContentBuffer.length + this.rdata.length
         }).s
       }
     } else {
@@ -273,7 +343,7 @@ class Resource {
 
   dl () {
     return new Promise((resolve, reject) => {
-      if (this.method !== 'POST') {
+      if (this.method !== 'POST' && !this.isSeed) {
         console.log('downloading')
         rp({
           headers: this.getHeaders,

@@ -4,7 +4,7 @@ const warcHeader =
   'WARC-Date: {{now}}\r\n' +
   'WARC-Filename: {{fileName}}\r\n' +
   'WARC-Record-ID: <urn:uuid:{{rid}}>\r\n' +
-  'Content-Type: application/warc-fields' +
+  'Content-Type: application/warc-fields\r\n' +
   'Content-Length: {{len}}\r\n'
 
 const warcHeaderContent =
@@ -14,7 +14,7 @@ const warcHeaderContent =
   'isPartOf: {{isPartOfV}}\r\n' +
   'description: {{warcInfoDescription}}\r\n' +
   'robots: ignore\r\n' +
-  'http-header-user-agent: {{UA}}\r\n'
+  'http-header-user-agent: {{ua}}\r\n'
 
 const warcMetadataHeader =
   'WARC/1.0\r\n' +

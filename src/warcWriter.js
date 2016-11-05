@@ -14,9 +14,12 @@ const {
   recordSeparator
 } = require('./warcFields')
 
-const toPath = '/home/john/WebstormProjects/testWarcreateElectron/test.warc'
+Promise.promisifyAll(fs)
+window.fse = fs
 
-class WarcWritter extends EventEmitter {
+const toPath = '/home/john/WebstormProjects/testWarcreateElectron/test3.warc'
+
+class WarcWriter extends EventEmitter {
   constructor () {
     super()
   }
@@ -34,9 +37,11 @@ class WarcWritter extends EventEmitter {
     dom('img').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
-        if (!outlinks.has(outlink)) {
-          ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
-          outlinks.add(outlink)
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
+            outlinks.add(outlink)
+          }
         }
       }
     })
@@ -44,9 +49,11 @@ class WarcWritter extends EventEmitter {
     dom('style[href]').each(function (i, elem) {
       let outlink = elem.attribs.href
       if (outlink) {
-        if (!outlinks.has(outlink)) {
-          ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
-          outlinks.add(outlink)
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
+            outlinks.add(outlink)
+          }
         }
       }
     })
@@ -54,12 +61,13 @@ class WarcWritter extends EventEmitter {
     dom('script[src]').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
-        if (!outlinks.has(outlink)) {
-          ret.outlinks += `${outlink} E script/@src\r\n`
-          outlinks.add(outlink)
+        if (outlink.indexOf('mailto:') < 0) {
+          if (!outlinks.has(outlink)) {
+            ret.outlinks += `${outlink} E script/@src\r\n`
+            outlinks.add(outlink)
+          }
         }
       }
-
     })
 
     dom('a').each(function (i, elem) {
@@ -68,13 +76,13 @@ class WarcWritter extends EventEmitter {
         if (urlType.isRelative(outlink)) {
           outlink = url.resolve(seedUrl, outlink)
         }
-        if (preserveA) {
-          ret.aTags.add(outlink)
-        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `outlink: ${outlink} L a/@href\r\n`
             outlinks.add(outlink)
+            if (preserveA) {
+              ret.aTags.add(outlink)
+            }
           }
         }
       }
@@ -83,52 +91,82 @@ class WarcWritter extends EventEmitter {
   }
 
   writeWarc (config) {
+    console.time('writting warc')
     let { seedUrl, networkMonitor, dtDom, ua, preserveA } = config
+    console.log(ua)
     let { doctype, dom }  = dtDom
-    // let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
+    let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
     // console.log(doctype)
     networkMonitor.matchNetworkToWC(seedUrl)
-    networkMonitor.wcRequests.get(seedUrl).addSeedUrlBody(`<!DOCTYPE ${doctype}>${dom}`)
-    // let swapper = S(warcHeaderContent)
-    // let whc = swapper.template({
-    //   version: '156',
-    //   isPartOfV: 'sads',
-    //   warcInfoDescription: 'dsadsaas',
-    //   ua
-    // }).s
+    let it = networkMonitor.wcRequests.get(seedUrl)
+    networkMonitor.wcRequests.get(seedUrl).addSeedUrlBody(`<!DOCTYPE ${doctype}>\n${dom}`)
+    networkMonitor.wcRequests.retrieve()
+      .then(() => {
+        let now = new Date().toISOString()
+        now = now.substr(0, now.indexOf('.')) + 'Z'
+        let rid = uuid.v1()
+        let swapper = S(warcHeaderContent)
+        let whc = Buffer.from('\r\n' + swapper.template({
+            version: '156',
+            isPartOfV: 'sads',
+            warcInfoDescription: 'dsadsaas',
+            ua
+          }).s + '\r\n', 'utf8')
+
+        let wh = Buffer.from(swapper.setValue(warcHeader).template({
+          fileName: 'test.warc',
+          now,
+          len: whc.length,
+          rid
+        }).s, 'utf8')
+
+        let wmhc = Buffer.from('\r\n' + outlinks + '\r\n', 'utf8')
+        let wmh = Buffer.from(swapper.setValue(warcMetadataHeader).template({
+          targetURI: seedUrl,
+          now,
+          len: wmhc.length,
+          concurrentTo: rid,
+          rid: uuid.v1()
+        }).s, 'utf8')
+        let opts = { seedUrl, concurrentTo: rid, now }
+        let warcOut = fs.createWriteStream(toPath)
+        warcOut.on('error', err => {
+          console.error('error happened while writting to the warc', err)
+        })
+        warcOut.on('finish', () => {
+          console.log('All writes are now complete.')
+          warcOut.destroy()
+          console.timeEnd('writting warc')
+        })
+        warcOut.write(wh, 'utf8')
+        warcOut.write(whc, 'utf8')
+        warcOut.write(recordSeparator, 'utf8')
+        warcOut.write(wmh, 'utf8')
+        warcOut.write(wmhc, 'utf8')
+        warcOut.write(recordSeparator, 'utf8')
+        let writeIter = networkMonitor.reqWriteIterator(opts)
+        const doWrite = () => {
+          console.log('doing write', new moment().format())
+          let next = writeIter.next()
+          if (!next.done) {
+            warcOut.write(next.value, 'utf8', doWrite)
+          } else {
+            warcOut.end()
+          }
+        }
+
+        doWrite()
+      })
     //
-    // let wh = swapper.setValue(warcHeader).template({
-    //   version: '156',
-    //   isPartOfV: 'sads',
-    //   warcInfoDescription: 'dsadsaas',
-    //   ua
-    // }).s
+    // let it = {}
+
     //
-    // // let mdataString = Array.from(outlinks).
-    // let wmdH = swapper.setValue(warcMetadataHeader).template({
-    //   targetURI: seedUrl,
-    //   concurrentTo: '',
-    //   rid: '',
-    //   now: '156',
-    //   len: 121
-    // }).s
-    //
-    // // let it = {}
-    let now = new Date().toISOString()
-    now = now.substr(0, now.indexOf('.')) + 'Z'
-    let me = uuid.v1()
-    let opts = { seedUrl, concurrentTo: me, now }
-    let warcOut = fs.createWriteStream(toPath)
-    warcOut.on('finish', () => {
-      console.log('All writes are now complete.')
-      warcOut.destroy()
-    })
-    for (let [url,winfo] of networkMonitor.wcRequests) {
-      console.log(url)
-      winfo.writeToWarcFile2(warcOut, '', opts)
-      console.log('----------------\n\n')
-    }
-    warcOut.end()
+    // for (let [url,winfo] of networkMonitor.wcRequests) {
+    //   console.log(url)
+    //   // winfo.writeToWarcFile2(warcOut, '', opts)
+    //   console.log('----------------\n\n')
+    // }
+    // warcOut.end()
 
     // this.extractOutlinks(aUrl, theDom, preserveA)
 
@@ -174,7 +212,7 @@ class WarcWritter extends EventEmitter {
   }
 }
 
-module.exports = WarcWritter
+module.exports = WarcWriter
 
 /*
  let ninfo = networkInfo.networkRequests.get(url)

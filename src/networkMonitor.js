@@ -68,6 +68,14 @@ class NetworkMonitor {
     webContents.debugger.detach()
   }
 
+  * reqWriteIterator (opts) {
+    let requestArray = this.wcRequests.resources()
+    do {
+      let ninfo = requestArray.shift()
+      yield * ninfo.yeildWritable(opts)
+    } while (requestArray.length > 0)
+  }
+
   matchNetworkToWC (aUrl) {
     let s1 = new Set(this.wcRequests.keys())
     let s2 = new Set(this.networkRequests.keys())

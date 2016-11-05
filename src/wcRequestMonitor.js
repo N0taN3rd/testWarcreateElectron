@@ -1,6 +1,6 @@
 const Resource = require('./resource')
 const _ = require('lodash')
-const Promise = require('lodash')
+const Promise = require('bluebird')
 
 const filter = {
   urls: [ 'http://*/*', 'https://*/*' ]
@@ -73,7 +73,7 @@ class wcRequestMonitor {
   }
 
   resources () {
-    return this.wcRequests.values()
+    return Array.from(this.wcRequests.values())
   }
 
   [Symbol.iterator] () {
