@@ -7,6 +7,7 @@ if (!window.__archive) {
     remote: remote,
     webContents: null,
     stopLoadingTimer: null,
+    count: 0,
     processLoaded () {
       if (window.location.href !== 'about:blank') {
         // console.log(this.url)
@@ -14,9 +15,12 @@ if (!window.__archive) {
         wc.on('did-stop-loading', () => {
           this.log('did-stop-loading')
           clearTimeout(this.stopLoadingTimer)
-          this.stopLoadingTimer = setTimeout(() => {
-            this.ipc.sendToHost('injected-archive', 'did-finish-load')
-          }, 1000)
+          if (this.count === 0) {
+            this.stopLoadingTimer = setTimeout(() => {
+              this.ipc.sendToHost('injected-archive', 'did-finish-load')
+              this.count += 1
+            }, 4000)
+          }
         })
       }
     }

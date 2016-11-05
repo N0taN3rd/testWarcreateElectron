@@ -25,7 +25,7 @@ const dl = true
 
 ipcMain.on('archive-ready', e => {
   console.log('archive-ready')
-  e.sender.send('archive', 'https://twitter.com/WebSciDL')
+  e.sender.send('archive', 'http://odu.edu/compsci')
 })
 
 ipcMain.on('message', (e, m) => {

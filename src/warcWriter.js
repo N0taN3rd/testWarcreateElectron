@@ -17,7 +17,7 @@ const {
 Promise.promisifyAll(fs)
 window.fse = fs
 
-const toPath = '/home/john/WebstormProjects/testWarcreateElectron/test3.warc'
+const toPath = '/home/john/WebstormProjects/testWarcreateElectron/csodu.warc'
 
 class WarcWriter extends EventEmitter {
   constructor () {

@@ -60,6 +60,9 @@ class Archive {
     dom('img').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
@@ -72,6 +75,9 @@ class Archive {
     dom('style[href]').each(function (i, elem) {
       let outlink = elem.attribs.href
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
@@ -84,6 +90,9 @@ class Archive {
     dom('script[src]').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink} E script/@src\r\n`

@@ -33,7 +33,7 @@ const headerStringHelper = (s, pair) => {
 }
 
 function requestHttpString (r) {
-  if (!r.url) {
+  if (!r || !r.url) {
     console.error(r)
   }
   return `${r.method} ${url.parse(r.url).path} HTTP/1.0\r\n`
@@ -216,11 +216,16 @@ class Resource {
       let res = this._response()
       let reqHeaderString
       let resHeaderString
-      if (res) {
+      if (res && this.request) {
         reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
         resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
       } else {
-        reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+        if (this.request) {
+          reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
+        } else {
+          console.log(this.url, this.matchedNinfo)
+          return
+        }
       }
       let swapper = S(warcRequestHeader)
       let reqHeadContentBuffer = Buffer.from('\r\n' + reqHeaderString + '\r\n', 'utf8')
