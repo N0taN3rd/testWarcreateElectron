@@ -1,4 +1,5 @@
 const rp = require('request-promise')
+const { STATUS_CODES }= require('http')
 const Promise = require('bluebird')
 const _ = require('lodash')
 const zlib = require('zlib')
@@ -36,9 +37,16 @@ function requestHttpString (r) {
   if (!r || !r.url) {
     console.error(r)
   }
-  return `${r.method} ${url.parse(r.url).path} HTTP/1.0\r\n`
+  return `${r.method} ${url.parse(r.url).path} HTTP/1.1\r\n`
 }
-const responseHttpString = r => `${r.statusLine}\r\n`
+const responseHttpString = r => {
+  let { statusLine, statusCode } = r
+  if (statusLine.indexOf(STATUS_CODES[ statusCode ]) < 0) {
+    console.log('badded we do not have the full status code', statusLine, statusCode, STATUS_CODES[ statusCode ])
+    return `${statusLine.substr(0, 8)} ${statusCode} ${STATUS_CODES[ statusCode ]}\r\n`
+  }
+  return `${r.statusLine}\r\n`
+}
 
 const stringifyHeaders = (r, accessor) => _
   .sortBy(_.toPairs(r[ accessor ]), [ 0 ])
@@ -62,7 +70,6 @@ class Resource {
     this.rdata = null
     this.getHeaders = null
     this.isSeed = false
-    this.writeOpts = null
     this.seedUrlHeaderMap = this.seedUrlHeaderMap.bind(this)
   }
 
@@ -72,30 +79,18 @@ class Resource {
       if (!this.getHeaders) {
         this.getHeaders = dets.requestHeaders
       }
-      if (this.response) {
-        let old = this.request
-        let n = cloneWC(dets)
-        // n.headerText = makeHeaderString(n, 'requestHeaders', requestHttpString)
-        this.request = [ old, n ]
-      } else {
-        this.request = cloneWC(dets)
-        // this.request.headerText = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
-      }
+      this.request = cloneWC(dets)
     } else if (eNum === 2) {
-      if (this.response) {
-        let old = this.response
-        let n = cloneWC(dets)
-        // n.headerText = makeHeaderString(n, 'responseHeaders', responseHttpString)
-        this.response = [ old, n ]
-      } else {
-        this.response = cloneWC(dets)
-        // this.response.headerText = makeHeaderString(this.response, 'responseHeaders', responseHttpString)
-      }
+      this.response = cloneWC(dets)
+      console.log(this.response.responseHeaders)
     } else if (eNum === 3) {
       this.redirect = cloneWC(dets)
+      console.log(this.redirect.responseHeaders)
       this.didRedirect = true
     } else {
       this.complete = cloneWC(dets)
+      console.log(this.complete.responseHeaders)
+
       // this.complete.headerText = makeHeaderString(this.complete, 'responseHeaders', responseHttpString)
       this.completed = true
     }
@@ -135,64 +130,15 @@ class Resource {
     this.isSeed = true
     this.rdata = Buffer.from(dom, 'utf8')
     this.response.statusLine = this.response.statusLine.replace('HTTP/1.1 304 Not Modified', 'HTTP/1.1 200 OK')
-    this.response.responseHeaders = _.omitBy(_.mapValues(this.response.responseHeaders, this.seedUrlHeaderMap), _.isNull)
-    console.log(this.response.responseHeaders)
+    if (this.response) {
+      this.response.responseHeaders = _.omitBy(_.mapValues(this.response.responseHeaders, this.seedUrlHeaderMap), _.isNull)
+    }
+    if (this.redirect) {
+      this.redirect.responseHeaders = _.omitBy(_.mapValues(this.redirect.responseHeaders, this.seedUrlHeaderMap), _.isNull)
+      console.log(this.redirect.responseHeaders)
+    }
     if (this.completed) {
       this.complete.responseHeaders = _.omitBy(_.mapValues(this.complete.responseHeaders, this.seedUrlHeaderMap), _.isNull)
-    }
-  }
-
-  ungzip (data, resolve, reject) {
-    console.log('un gzipping')
-    zlib.gunzip(data.body, (err, unzipped) => {
-      if (err) {
-        console.error(err)
-        reject(err)
-      } else {
-        this.rdata = unzipped.toString()
-        console.log(this.rdata)
-        resolve()
-      }
-    })
-  }
-
-  inflate (data, resolve, reject) {
-    console.log('inflating')
-    zlib.inflate(data.body, (err, unzipped) => {
-      if (err) {
-        console.error(err)
-        reject(err)
-      } else {
-        this.rdata = unzipped.toString()
-        console.log(this.rdata)
-        resolve()
-      }
-    })
-  }
-
-  writeToWarcFile (warcStream, opts) {
-    let { seedUrl, concurrentTo, now } = opts
-    if (this.method === 'GET') {
-      // let res = this.completed ? this.completed : this.response
-      // if (res) {
-      //   let reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
-      //   let resHeaderString = makeHeaderString(res, 'responseHeaders', responseHttpString)
-      // } else {
-      //   let reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
-      // }
-      //
-      // let swapper = S(warcRequestHeader)
-      // let reqWHeader = swapper.template({
-      //   targetURI: this.url, concurrentTo,
-      //   now, rid: uuid.v1(), len: reqHeaderString.length
-      // }).s
-      //
-      // let respWHeader = swapper.setValue(warcResponseHeader).template({
-      //   targetURI: this.url,
-      //   now, rid: uuid.v1(), len: resHeaderString.length
-      // }).s
-    } else {
-      // write something
     }
   }
 
@@ -204,10 +150,6 @@ class Resource {
     } else {
       return this.response
     }
-  }
-
-  addWriteOpts (opts) {
-    this.writeOpts = opts
   }
 
   * yeildWritable (opts) {
@@ -223,7 +165,8 @@ class Resource {
         if (this.request) {
           reqHeaderString = makeHeaderString(this.request, 'requestHeaders', requestHttpString)
         } else {
-          console.log(this.url, this.matchedNinfo)
+          console.log(this.url, this.matchedNinfo, this.redirect)
+          console.log('We may have an issue')
           return
         }
       }
@@ -317,35 +260,6 @@ class Resource {
     }
   }
 
-  dlWrite (warcStream, opts) {
-    return new Promise((resolve, reject) => {
-      if (this.method !== 'POST') {
-        console.log('downloading')
-        rp({
-          headers: this.getHeaders,
-          method: 'GET',
-          encoding: null, //always get buffer
-          url: this.url,
-          strictSSL: false,
-          rejectUnauthorized: false,
-          resolveWithFullResponse: true
-        })
-          .then(data => {
-            console.log('done downloading')
-            this.writeToWarcFile2(warcStream, data.body, opts)
-            resolve()
-          })
-          .catch(error => {
-            console.log('downloading error', error)
-            reject(error)
-          })
-      } else {
-        this.writeToWarcFile2(warcStream, '', opts)
-        resolve()
-      }
-    })
-  }
-
   dl () {
     return new Promise((resolve, reject) => {
       if (this.method !== 'POST' && !this.isSeed) {
@@ -376,6 +290,20 @@ class Resource {
 
   addNetwork (ninfo) {
     this.matchedNinfo = ninfo
+    if (Array.isArray(this.request)) {
+      console.log('we have multiple request for same url', this.url, this.request)
+    }
+
+    if (Array.isArray(this.response)) {
+      console.log('we have multipe response for same url', this.url, this.response)
+    }
+
+    if (Array.isArray(this.redirect)) {
+      console.log('we have multipe redirects for same url', this.url, this.redirect)
+    }
+    if (Array.isArray(this.complete)) {
+      console.log('we have multipe completed for same url', this.url, this.complete)
+    }
   }
 
 }

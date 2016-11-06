@@ -17,7 +17,7 @@ const {
 Promise.promisifyAll(fs)
 window.fse = fs
 
-const toPath = '/home/john/WebstormProjects/testWarcreateElectron/csodu.warc'
+const toPath = '/home/john/WebstormProjects/testWarcreateElectron/test6.warc'
 
 class WarcWriter extends EventEmitter {
   constructor () {
@@ -37,6 +37,9 @@ class WarcWriter extends EventEmitter {
     dom('img').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink} E =EMBED_MISC\r\n`
@@ -49,6 +52,9 @@ class WarcWriter extends EventEmitter {
     dom('style[href]').each(function (i, elem) {
       let outlink = elem.attribs.href
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink}  E =EMBED_MISC\r\n`
@@ -61,6 +67,9 @@ class WarcWriter extends EventEmitter {
     dom('script[src]').each(function (i, elem) {
       let outlink = elem.attribs.src
       if (outlink) {
+        if (urlType.isRelative(outlink)) {
+          outlink = url.resolve(seedUrl, outlink)
+        }
         if (outlink.indexOf('mailto:') < 0) {
           if (!outlinks.has(outlink)) {
             ret.outlinks += `${outlink} E script/@src\r\n`
@@ -98,7 +107,6 @@ class WarcWriter extends EventEmitter {
     let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
     // console.log(doctype)
     networkMonitor.matchNetworkToWC(seedUrl)
-    let it = networkMonitor.wcRequests.get(seedUrl)
     networkMonitor.wcRequests.get(seedUrl).addSeedUrlBody(`<!DOCTYPE ${doctype}>\n${dom}`)
     networkMonitor.wcRequests.retrieve()
       .then(() => {

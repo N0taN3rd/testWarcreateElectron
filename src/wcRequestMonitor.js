@@ -13,9 +13,8 @@ class wcRequestMonitor {
 
   attach (webContents) {
     this.wcRequests.clear()
-    webContents.session.webRequest.onBeforeSendHeaders(filter, (dets, cb) => {
+    webContents.session.webRequest.onSendHeaders(filter, (dets, cb) => {
       this.add('beforeSend', dets)
-      cb({ cancel: false, requestHeaders: dets.requestHeaders })
     })
     webContents.session.webRequest.onHeadersReceived(filter, (dets, cb) => {
       this.add('receiveHead', dets)
@@ -26,6 +25,10 @@ class wcRequestMonitor {
     })
     webContents.session.webRequest.onCompleted(filter, (dets) => {
       this.add('complete', dets)
+    })
+    webContents.session.webRequest.onErrorOccurred(filter, (dets) => {
+      // this.add('complete', dets)
+      console.log('WEBREQUEST MONITOR ERROR DANGER!!!', dets)
     })
   }
 
@@ -90,7 +93,7 @@ class wcRequestMonitor {
       if (ninfo) {
         winfo.addNetwork(ninfo)
       } else {
-        console.log('ninfo for ', url, 'of wcRequests was null')
+        console.log('ninfo for ', url, 'of wcRequests was null', winfo)
       }
     }
   }

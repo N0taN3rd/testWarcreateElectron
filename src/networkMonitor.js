@@ -79,7 +79,9 @@ class NetworkMonitor {
   matchNetworkToWC (aUrl) {
     let s1 = new Set(this.wcRequests.keys())
     let s2 = new Set(this.networkRequests.keys())
-    for (let wtf of s1.difference(s2)) {
+    let dif = s1.difference(s2)
+    console.log(dif)
+    for (let wtf of dif) {
       if (wtf !== aUrl) {
         console.log('removing', wtf)
         this.wcRequests.remove(wtf)
