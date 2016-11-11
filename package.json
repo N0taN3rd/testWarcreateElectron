@@ -12,7 +12,6 @@
   "dependencies": {
     "bluebird": "^3.4.6",
     "cheerio": "^0.22.0",
-    "chrome-remote-interface": "^0.16.0",
     "electron-debug": "^1.1.0",
     "eventemitter3": "^2.0.2",
     "fs-extra": "1.0.0",
@@ -34,6 +33,7 @@
     "request-promise": "^4.1.1",
     "roboto-fontface": "^0.6.0",
     "string": "^3.3.3",
+    "twit": "^2.2.5",
     "url-type": "^0.1.2"
   },
   "devDependencies": {
@@ -81,7 +81,7 @@
     "webpack-dev-middleware": "^1.8.4",
     "webpack-dev-server": "1.16.2",
     "webpack-externals-plugin": "^1.0.0",
-    "webpack-hot-middleware": "^2.13.1",
+    "webpack-hot-middleware": "^2.13.2",
     "webpack-middleware": "^1.5.1"
   },
   "eslintConfig": {

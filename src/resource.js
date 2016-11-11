@@ -82,15 +82,11 @@ class Resource {
       this.request = cloneWC(dets)
     } else if (eNum === 2) {
       this.response = cloneWC(dets)
-      console.log(this.response.responseHeaders)
     } else if (eNum === 3) {
       this.redirect = cloneWC(dets)
-      console.log(this.redirect.responseHeaders)
       this.didRedirect = true
     } else {
       this.complete = cloneWC(dets)
-      console.log(this.complete.responseHeaders)
-
       // this.complete.headerText = makeHeaderString(this.complete, 'responseHeaders', responseHttpString)
       this.completed = true
     }
