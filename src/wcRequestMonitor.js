@@ -3,12 +3,20 @@ const _ = require('lodash')
 const Promise = require('bluebird')
 
 const filter = {
-  urls: [ 'http://*/*', 'https://*/*' ]
+  urls: ['http://*/*', 'https://*/*']
 }
 
 class wcRequestMonitor {
   constructor () {
     this.wcRequests = new Map()
+  }
+
+  detach (webContents) {
+    webContents.session.webRequest.onSendHeaders(filter, null)
+    webContents.session.webRequest.onHeadersReceived(filter, null)
+    webContents.session.webRequest.onBeforeRedirect(filter, null)
+    webContents.session.webRequest.onCompleted(filter, null)
+    webContents.session.webRequest.onErrorOccurred(filter, null)
   }
 
   attach (webContents) {
@@ -18,7 +26,7 @@ class wcRequestMonitor {
     })
     webContents.session.webRequest.onHeadersReceived(filter, (dets, cb) => {
       this.add('receiveHead', dets)
-      cb({ cancel: false, requestHeaders: dets.requestHeaders })
+      cb({cancel: false, requestHeaders: dets.requestHeaders})
     })
     webContents.session.webRequest.onBeforeRedirect(filter, (dets) => {
       this.add('beforeRedirect', dets)
@@ -88,12 +96,12 @@ class wcRequestMonitor {
   }
 
   match (networkInfo) {
-    for (let [url,winfo] of this.wcRequests) {
+    for (let [url, winfo] of this.wcRequests) {
       let ninfo = networkInfo.get(url)
-      if (ninfo) {
-        winfo.addNetwork(ninfo)
-      } else {
+      if (!ninfo) {
         console.log('ninfo for ', url, 'of wcRequests was null', winfo)
+      } else {
+        console.log('we have', url)
       }
     }
   }

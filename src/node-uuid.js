@@ -66,7 +66,6 @@
   if (_window) {
     setupBrowser();
   } else {
-    console.log('node')
     setupNode();
   }
 

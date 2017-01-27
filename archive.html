@@ -24,6 +24,7 @@
 </head>
 <body>
 <webview class='archiveWV' id="awv" src="about:blank"
+         webpreferences="allowDisplayingInsecureContent"
          preload="./src/inject.js"
          partition="archive"
          plugins
@@ -32,11 +33,10 @@
 </webview>
 <!--<script src="http://localhost:9000/dist/archive.bundle.js"></script>-->
 <script>
-    console.log(window.archive)
-    if (!window.archive) {
-        const Archive = require('./src/archive')
-        window.archive = new Archive(document.getElementById('awv'))
-    }
+  if (!window.archive) {
+    const Archive = require('./update/archive')
+    window.archive = new Archive(document.getElementById('awv'))
+  }
 </script>
 </body>
 </html>

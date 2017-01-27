@@ -5,6 +5,7 @@ const WarcWriter = require('./warcWriter')
 const NetworkMonitor = require('./networkMonitor')
 const Promise = require('bluebird')
 const url = require('url')
+const fs = require('fs-extra')
 const urlType = require('url-type')
 
 const savePath = '/home/john/WebstormProjects/testWarcreateElectron/something/page.html'
@@ -48,9 +49,7 @@ class Archive {
   }
 
   freshSession (webContents) {
-    console.log('freshSession')
     return new Promise((resolve, reject) => {
-      console.log('in promise')
       let opts = {
         origin: webContents.getURL(),
         storages: [ 'appcache', 'filesystem', 'local storage' ]

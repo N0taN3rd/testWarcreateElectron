@@ -39,6 +39,7 @@ function requestHttpString (r) {
   }
   return `${r.method} ${url.parse(r.url).path} HTTP/1.1\r\n`
 }
+
 const responseHttpString = r => {
   let { statusLine, statusCode } = r
   if (statusLine.indexOf(STATUS_CODES[ statusCode ]) < 0) {

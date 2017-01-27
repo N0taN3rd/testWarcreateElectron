@@ -96,3 +96,9 @@ fabric.properties
 
 something
 tarchive
+
+collections
+static
+templates
+*.warc
+page*.json

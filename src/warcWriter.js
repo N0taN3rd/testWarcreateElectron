@@ -99,44 +99,53 @@ class WarcWriter extends EventEmitter {
     return ret
   }
 
+  *makeWriteIter ({seedUrl, networkMonitor, dtDom:{doctype, dom}, ua, preserveA}) {
+    let {outlinks}  =  this.extractOutlinks(seedUrl, dom, preserveA)
+    let now = new Date().toISOString()
+    now = now.substr(0, now.indexOf('.')) + 'Z'
+    let rid = uuid.v1()
+    let swapper = S(warcHeaderContent)
+    let whc = Buffer.from('\r\n' + swapper.template({
+        version: '156',
+        isPartOfV: 'sads',
+        warcInfoDescription: 'dsadsaas',
+        ua
+      }).s + '\r\n', 'utf8')
+
+    let wh = Buffer.from(swapper.setValue(warcHeader).template({
+      fileName: 'test.warc',
+      now,
+      len: whc.length,
+      rid
+    }).s, 'utf8')
+
+    let wmhc = Buffer.from('\r\n' + outlinks + '\r\n', 'utf8')
+    let wmh = Buffer.from(swapper.setValue(warcMetadataHeader).template({
+      targetURI: seedUrl,
+      now,
+      len: wmhc.length,
+      concurrentTo: rid,
+      rid: uuid.v1()
+    }).s, 'utf8')
+    let opts = {seedUrl, concurrentTo: rid, now}
+    yield wh
+    yield whc
+    yield recordSeparator
+    yield wmh
+    yield wmhc
+    yield recordSeparator
+    yield * networkMonitor.reqWriteIterator(opts)
+  }
+
   writeWarc (config) {
     console.time('writting warc')
-    let { seedUrl, networkMonitor, dtDom, ua, preserveA } = config
-    console.log(ua)
-    let { doctype, dom }  = dtDom
-    let { outlinks }  =  this.extractOutlinks(seedUrl, dom, preserveA)
+    let {seedUrl, networkMonitor, dtDom: {doctype, dom}} = config
+
     // console.log(doctype)
     networkMonitor.matchNetworkToWC(seedUrl)
     networkMonitor.wcRequests.get(seedUrl).addSeedUrlBody(`<!DOCTYPE ${doctype}>\n${dom}`)
     networkMonitor.wcRequests.retrieve()
       .then(() => {
-        let now = new Date().toISOString()
-        now = now.substr(0, now.indexOf('.')) + 'Z'
-        let rid = uuid.v1()
-        let swapper = S(warcHeaderContent)
-        let whc = Buffer.from('\r\n' + swapper.template({
-            version: '156',
-            isPartOfV: 'sads',
-            warcInfoDescription: 'dsadsaas',
-            ua
-          }).s + '\r\n', 'utf8')
-
-        let wh = Buffer.from(swapper.setValue(warcHeader).template({
-          fileName: 'test.warc',
-          now,
-          len: whc.length,
-          rid
-        }).s, 'utf8')
-
-        let wmhc = Buffer.from('\r\n' + outlinks + '\r\n', 'utf8')
-        let wmh = Buffer.from(swapper.setValue(warcMetadataHeader).template({
-          targetURI: seedUrl,
-          now,
-          len: wmhc.length,
-          concurrentTo: rid,
-          rid: uuid.v1()
-        }).s, 'utf8')
-        let opts = { seedUrl, concurrentTo: rid, now }
         let warcOut = fs.createWriteStream(toPath)
         warcOut.on('error', err => {
           console.error('error happened while writting to the warc', err)
@@ -146,15 +155,10 @@ class WarcWriter extends EventEmitter {
           warcOut.destroy()
           console.timeEnd('writting warc')
         })
-        warcOut.write(wh, 'utf8')
-        warcOut.write(whc, 'utf8')
-        warcOut.write(recordSeparator, 'utf8')
-        warcOut.write(wmh, 'utf8')
-        warcOut.write(wmhc, 'utf8')
-        warcOut.write(recordSeparator, 'utf8')
-        let writeIter = networkMonitor.reqWriteIterator(opts)
+        const writeIter = this.makeWriteIter(config)
+
         const doWrite = () => {
-          console.log('doing write', new moment().format())
+          console.log('doing write', moment().format())
           let next = writeIter.next()
           if (!next.done) {
             warcOut.write(next.value, 'utf8', doWrite)
@@ -162,7 +166,6 @@ class WarcWriter extends EventEmitter {
             warcOut.end()
           }
         }
-
         doWrite()
       })
     //
