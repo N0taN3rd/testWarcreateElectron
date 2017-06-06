@@ -16,7 +16,7 @@ class NetInterceptor extends EventEmitter {
     this.proxy_opts = {
       keepAlive: true,
       forceSNI: true,
-      port: remote.getGlobal('proxyPort'),
+      port: 3000,
       sslCaDir: remote.getGlobal('proxySSLCaDir')
     }
     this.proxy.onRequest(this.handleIncomingRequest.bind(this))

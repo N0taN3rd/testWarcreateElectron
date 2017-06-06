@@ -53,15 +53,35 @@ class DebuggerUtil {
             if (!_.isEmpty(errD)) {
               return reject(errD)
             }
-            resolve()
+            this._wc.debugger.sendCommand('Runtime.enable', (errR) => {
+              if (!_.isEmpty(errR)) {
+                return reject(errR)
+              }
+              this._wc.debugger.sendCommand('Network.enable', (errN) => {
+                if (!_.isEmpty(errN)) {
+                  return reject(errN)
+                }
+                resolve()
+              })
+            })
           })
         })
       } catch (err) {
-        console.error(err)
         reject(err)
       }
     })
+  }
 
+  setupNetwork () {
+    this._wc.debugger.on('message',(event,method,params) => {
+      if (method === 'Network.loadingFinished') {
+        this._wc.debugger.sendCommand('Network.getResponseBody', {
+          requestId: params.requestId
+        }, (...args) => {
+            console.log(args)
+        })
+      }
+    })
   }
 
   detach () {
